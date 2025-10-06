@@ -47,7 +47,7 @@ const ProfileSetup = () => {
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-6">
-            Welcome to <span className="text-primary">EConstruct</span>
+            WELCOME to <span className="text-primary">EConstruct</span>
           </h1>
           <p className="text-gray-600 text-lg">Complete your organization profile to get started</p>
         </div>
