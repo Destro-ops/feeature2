@@ -1,5 +1,6 @@
 import { Camera, Truck, BarChart3 } from "lucide-react";
 import listSurplus from "@/assets/list-surplus.png";
+import transport from "@/assets/transport.png";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 export const HowItWorks = () => {
   const steps = [
@@ -71,10 +72,20 @@ export const HowItWorks = () => {
               <div className="flex-1 bg-muted rounded-lg flex items-center justify-center shadow-soft overflow-hidden p-2">
                 {index === 0 ? (
                   // Illustration for "List Your Surplus Materials"
-                  <AspectRatio ratio={16 / 9} className="w-full">
+                  <AspectRatio ratio={16 / 8} className="w-full">
                     <img
                       src={listSurplus}
                       alt="List your surplus material - AI verification flow"
+                      className="h-full w-full object-contain"
+                      loading="lazy"
+                    />
+                  </AspectRatio>
+                ) : index === 1 ? (
+                  // Illustration for "Get Matched with a Buyer"
+                  <AspectRatio ratio={14 / 8} className="w-full">
+                    <img
+                      src={transport}
+                      alt="Match & Move: Get matched with a buyer and fastest route"
                       className="h-full w-full object-contain"
                       loading="lazy"
                     />
