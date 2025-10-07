@@ -40,7 +40,7 @@ const SignUp = () => {
         await updateProfile(cred.user, { displayName: name.trim() });
       }
       await persistUserDoc(cred.user.uid, name || cred.user.displayName || "", cred.user.email || email);
-      window.location.href = "/";
+      window.location.href = "/marketplace";
     } catch (err: any) {
       setError(err?.message || "Sign up failed");
     } finally {
@@ -58,7 +58,7 @@ const SignUp = () => {
         cred.user.displayName || "",
         cred.user.email || ""
       );
-      window.location.href = "/";
+      window.location.href = "/marketplace";
     } catch (err: any) {
       setError(err?.message || "Google sign-in failed");
     } finally {

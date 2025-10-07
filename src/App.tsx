@@ -8,6 +8,8 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import ProfileSetup from "./pages/ProfileSetup";
 import SignUp from "./pages/SignUp";
+import Marketplace from "./pages/Marketplace";
+import ProtectedRoute from "./ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +24,14 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/profile-setup" element={<ProfileSetup />} />
           <Route path="/signup" element={<SignUp />} />
+          <Route
+            path="/marketplace"
+            element={
+              <ProtectedRoute>
+                <Marketplace />
+              </ProtectedRoute>
+            }
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
