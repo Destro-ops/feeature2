@@ -24,6 +24,14 @@ npm i
 npm run dev
 ```
 
+### Firebase setup
+
+This project uses Firebase for auth and database. Install the Firebase SDK:
+
+```sh
+npm install firebase
+```
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).
