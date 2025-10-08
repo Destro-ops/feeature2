@@ -222,7 +222,7 @@ const Marketplace = () => {
                   </Dialog>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton className="hover:bg-white/10">
+                  <SidebarMenuButton className="hover:bg-white/10" onClick={() => (window.location.href = "/inventory-check") }>
                     <Factory className="h-4 w-4" />
                     <span>CHECK INVENTORY</span>
                   </SidebarMenuButton>

@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import ProfileSetup from "./pages/ProfileSetup";
 import SignUp from "./pages/SignUp";
 import Marketplace from "./pages/Marketplace";
+import InventoryCheck from "./pages/InventoryCheck";
 import ProtectedRoute from "./ProtectedRoute";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,14 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <Marketplace />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory-check"
+            element={
+              <ProtectedRoute>
+                <InventoryCheck />
               </ProtectedRoute>
             }
           />
