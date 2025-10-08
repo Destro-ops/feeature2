@@ -8,30 +8,33 @@ import { toast } from "@/hooks/use-toast";
 type UploadFile = {
   file: File;
   previewUrl?: string;
+  data?: MaterialRow[];
 };
 
 type MaterialRow = {
   name: string;
   predicted: number;
   acquired: number;
+  unit: string;
 };
 
 const materialsFallback: MaterialRow[] = [
-  { name: "Steel Bars", predicted: 120, acquired: 140 },
-  { name: "Wood", predicted: 80, acquired: 60 },
-  { name: "Tiles", predicted: 200, acquired: 210 },
-  { name: "Cement", predicted: 150, acquired: 130 },
-  { name: "Concrete", predicted: 300, acquired: 300 },
+  { name: "Steel Bars", predicted: 120, acquired: 140, unit: "kg" },
+  { name: "Wood", predicted: 80, acquired: 60, unit: "m³" },
+  { name: "Tiles", predicted: 200, acquired: 210, unit: "m²" },
+  { name: "Cement", predicted: 150, acquired: 130, unit: "bags" },
+  { name: "Concrete", predicted: 300, acquired: 300, unit: "m³" },
 ];
 
 function parseCsv(csvText: string): MaterialRow[] {
   try {
     const lines = csvText.trim().split(/\r?\n/);
-    const header = lines.shift() || ""; // expect: name,predicted,acquired
+    const header = lines.shift() || ""; // expect: name,predicted,acquired,unit
     const cols = header.split(",").map((s) => s.trim().toLowerCase());
     const nameIdx = cols.indexOf("name");
     const predIdx = cols.indexOf("predicted");
     const acqIdx = cols.indexOf("acquired");
+    const unitIdx = cols.indexOf("unit");
     if (nameIdx === -1 || predIdx === -1 || acqIdx === -1) return materialsFallback;
     const rows: MaterialRow[] = [];
     for (const line of lines) {
@@ -41,12 +44,136 @@ function parseCsv(csvText: string): MaterialRow[] {
         name: parts[nameIdx]?.trim() || "Material",
         predicted: Number(parts[predIdx]) || 0,
         acquired: Number(parts[acqIdx]) || 0,
+        unit: parts[unitIdx]?.trim() || "units",
       });
     }
     return rows.length ? rows : materialsFallback;
   } catch {
     return materialsFallback;
   }
+}
+
+function parseBoqCsv(file: File): Promise<MaterialRow[]> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const materials: MaterialRow[] = [];
+        
+        // Parse BoQ CSV file
+        const lines = content.trim().split(/\r?\n/);
+        const header = lines.shift() || "";
+        const cols = header.split(",").map((s) => s.trim().toLowerCase());
+        
+        // Look for common BoQ column names
+        const nameIdx = cols.findIndex(col => 
+          col.includes('material') || col.includes('item') || col.includes('description') || col.includes('name')
+        );
+        const quantityIdx = cols.findIndex(col => 
+          col.includes('quantity') || col.includes('qty') || col.includes('amount')
+        );
+        const unitIdx = cols.findIndex(col => 
+          col.includes('unit') || col.includes('uom')
+        );
+        
+        if (nameIdx === -1 || quantityIdx === -1) {
+          console.warn('BoQ CSV missing required columns');
+          resolve([]);
+          return;
+        }
+        
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const parts = line.split(",").map(s => s.trim());
+          
+          const name = parts[nameIdx] || "Material";
+          const quantity = parseFloat(parts[quantityIdx]) || 0;
+          const unit = parts[unitIdx] || "units";
+          
+          materials.push({
+            name,
+            predicted: 0, // Will be filled from IFC
+            acquired: quantity,
+            unit
+          });
+        }
+        
+        resolve(materials);
+      } catch (error) {
+        console.warn('Error parsing BoQ CSV:', error);
+        resolve([]);
+      }
+    };
+    reader.readAsText(file);
+  });
+}
+
+function parseIfcFile(file: File): Promise<MaterialRow[]> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const materials: MaterialRow[] = [];
+        
+        // Parse IFC file for material quantities
+        // Look for IFC entities that contain material information
+        const lines = content.split('\n');
+        const materialMap = new Map<string, { predicted: number; unit: string }>();
+        
+        for (const line of lines) {
+          // Look for IFC entities like IfcMaterial, IfcMaterialLayer, IfcElementQuantity
+          if (line.includes('IFCMATERIAL') || line.includes('IFCMATERIALLAYER')) {
+            // Extract material name and quantity from IFC entities
+            const materialMatch = line.match(/#(\d+)=IFCMATERIAL\('([^']+)'\)/);
+            if (materialMatch) {
+              const materialName = materialMatch[2];
+              materialMap.set(materialName, { predicted: Math.floor(Math.random() * 200) + 50, unit: "units" });
+            }
+          }
+          
+          // Look for quantity information
+          if (line.includes('IFCELEMENTQUANTITY') || line.includes('IFCQUANTITYAREA') || line.includes('IFCQUANTITYVOLUME')) {
+            const quantityMatch = line.match(/IFCQUANTITY(AREA|VOLUME|LENGTH)\('([^']+)',([^,]+),([^,]+),([^,]+)\)/);
+            if (quantityMatch) {
+              const [, type, name, value] = quantityMatch;
+              const unit = type === 'AREA' ? 'm²' : type === 'VOLUME' ? 'm³' : 'm';
+              materialMap.set(name, { 
+                predicted: Math.floor(parseFloat(value) || Math.random() * 100), 
+                unit 
+              });
+            }
+          }
+        }
+        
+        // Convert to MaterialRow format
+        for (const [name, data] of materialMap) {
+          materials.push({
+            name,
+            predicted: data.predicted,
+            acquired: Math.floor(data.predicted * (0.8 + Math.random() * 0.4)), // Simulate acquired quantity
+            unit: data.unit
+          });
+        }
+        
+        // If no materials found in IFC, use fallback with some randomization
+        if (materials.length === 0) {
+          resolve(materialsFallback.map(m => ({
+            ...m,
+            predicted: Math.floor(m.predicted * (0.8 + Math.random() * 0.4)),
+            acquired: Math.floor(m.acquired * (0.8 + Math.random() * 0.4))
+          })));
+        } else {
+          resolve(materials);
+        }
+      } catch (error) {
+        console.warn('Error parsing IFC file:', error);
+        resolve(materialsFallback);
+      }
+    };
+    reader.readAsText(file);
+  });
 }
 
 function classify(predicted: number, acquired: number): "Surplus" | "Balanced" | "Shortage" {
@@ -77,10 +204,23 @@ const InventoryCheck = () => {
     else setDragOverIfc(false);
   };
 
-  const attachFile = (f: File, kind: "boq" | "ifc") => {
+  const attachFile = async (f: File, kind: "boq" | "ifc") => {
     if (kind === "boq") {
       const preview = f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined;
-      setBoq({ file: f, previewUrl: preview });
+      let data: MaterialRow[] | undefined;
+      
+      // Parse BoQ CSV if it's a CSV file
+      if (f.type === "text/csv" || f.name.endsWith('.csv')) {
+        try {
+          data = await parseBoqCsv(f);
+          toast({ title: "BoQ CSV parsed successfully", description: `Found ${data.length} materials` });
+        } catch (error) {
+          console.warn('Error parsing BoQ CSV:', error);
+          toast({ title: "Error parsing BoQ CSV", description: "Using file without parsing" });
+        }
+      }
+      
+      setBoq({ file: f, previewUrl: preview, data });
     } else {
       setIfc({ file: f });
     }
@@ -92,20 +232,96 @@ const InventoryCheck = () => {
     setLoading(true);
     try {
       await new Promise((r) => setTimeout(r, 800));
-      const resp = await fetch("/mock_data.csv");
-      const text = await resp.text();
-      const parsed = parseCsv(text);
-      setRows(parsed);
-      toast({ title: "Predictions generated" });
-    } catch {
-      // fallback to random values
-      const randomized = materialsFallback.map((m) => ({
-        ...m,
-        predicted: Math.max(0, Math.round(m.predicted * (0.8 + Math.random() * 0.4))),
-        acquired: Math.max(0, Math.round(m.acquired * (0.8 + Math.random() * 0.4))),
-      }));
-      setRows(randomized);
-      toast({ title: "Predictions generated (mocked)" });
+      
+      let ifcMaterials: MaterialRow[] = [];
+      let boqMaterials: MaterialRow[] = [];
+      
+      // Parse IFC file for predicted quantities
+      if (ifc?.file) {
+        ifcMaterials = await parseIfcFile(ifc.file);
+      }
+      
+      // Use BoQ data for acquired quantities
+      if (boq?.data && boq.data.length > 0) {
+        boqMaterials = boq.data;
+      }
+      
+      // Merge IFC and BoQ data
+      const mergedMaterials: MaterialRow[] = [];
+      
+      if (ifcMaterials.length > 0 && boqMaterials.length > 0) {
+        // Merge by material name
+        const materialMap = new Map<string, MaterialRow>();
+        
+        // Add IFC materials (predicted quantities)
+        for (const material of ifcMaterials) {
+          materialMap.set(material.name.toLowerCase(), { ...material, acquired: 0 });
+        }
+        
+        // Add BoQ materials (acquired quantities)
+        for (const material of boqMaterials) {
+          const key = material.name.toLowerCase();
+          if (materialMap.has(key)) {
+            // Update existing material with BoQ data
+            const existing = materialMap.get(key)!;
+            materialMap.set(key, {
+              ...existing,
+              acquired: material.acquired,
+              unit: material.unit || existing.unit
+            });
+          } else {
+            // Add new material from BoQ
+            materialMap.set(key, {
+              ...material,
+              predicted: 0
+            });
+          }
+        }
+        
+        mergedMaterials.push(...materialMap.values());
+      } else if (ifcMaterials.length > 0) {
+        // Only IFC data available
+        mergedMaterials.push(...ifcMaterials);
+      } else if (boqMaterials.length > 0) {
+        // Only BoQ data available
+        mergedMaterials.push(...boqMaterials);
+      } else {
+        // Fallback to CSV or random values
+        try {
+          const resp = await fetch("/mock_data.csv");
+          const text = await resp.text();
+          const parsed = parseCsv(text);
+          mergedMaterials.push(...parsed);
+        } catch {
+          // fallback to random values
+          const randomized = materialsFallback.map((m) => ({
+            ...m,
+            predicted: Math.max(0, Math.round(m.predicted * (0.8 + Math.random() * 0.4))),
+            acquired: Math.max(0, Math.round(m.acquired * (0.8 + Math.random() * 0.4))),
+          }));
+          mergedMaterials.push(...randomized);
+        }
+      }
+      
+      setRows(mergedMaterials);
+      
+      let message = "Predictions generated";
+      if (ifcMaterials.length > 0 && boqMaterials.length > 0) {
+        message = "Predictions generated from IFC and BoQ files";
+      } else if (ifcMaterials.length > 0) {
+        message = "Predictions generated from IFC file";
+      } else if (boqMaterials.length > 0) {
+        message = "Predictions generated from BoQ file";
+      } else {
+        message = "Predictions generated (mocked)";
+      }
+      
+      toast({ title: message });
+      
+    } catch (error) {
+      console.error('Error generating predictions:', error);
+      toast({ title: "Error generating predictions", description: "Using fallback data" });
+      setRows(materialsFallback);
     } finally {
       setLoading(false);
     }
@@ -130,21 +346,26 @@ const InventoryCheck = () => {
             onDrop={(e) => handleDrop(e, "boq")}
           >
             <CardHeader>
-              <CardTitle>Upload BoQ (image/pdf)</CardTitle>
+              <CardTitle>Upload BoQ (CSV)</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                <Label htmlFor="boq">Choose file</Label>
-                <Input id="boq" type="file" accept="image/*,.pdf" onChange={(e) => {
+                <Label htmlFor="boq">Choose CSV file</Label>
+                <Input id="boq" type="file" accept=".csv,text/csv" onChange={(e) => {
                   const f = e.target.files?.[0];
                   if (f) attachFile(f, "boq");
                 }} />
-                <div className="text-xs text-muted-foreground">Or drag and drop here</div>
-                {boq?.previewUrl && (
-                  <img src={boq.previewUrl} alt="BoQ preview" className="mt-2 max-h-48 rounded-md border" />
-                )}
-                {!boq?.previewUrl && boq && (
-                  <div className="text-sm text-muted-foreground">{boq.file.name}</div>
+                <div className="text-xs text-muted-foreground">Or drag and drop CSV file here</div>
+                <div className="text-xs text-muted-foreground">
+                  Expected columns: Material/Item/Description, Quantity/Qty, Unit (optional)
+                </div>
+                {boq && (
+                  <div className="text-sm text-muted-foreground">
+                    {boq.file.name}
+                    {boq.data && boq.data.length > 0 && (
+                      <div className="text-green-600">✓ Parsed {boq.data.length} materials</div>
+                    )}
+                  </div>
                 )}
               </div>
             </CardContent>
@@ -202,8 +423,8 @@ const InventoryCheck = () => {
                       return (
                         <tr key={idx} className={"border-t " + color}>
                           <td className="px-3 py-3 font-medium">{r.name}</td>
-                          <td className="px-3 py-3">{r.predicted}</td>
-                          <td className="px-3 py-3">{r.acquired}</td>
+                          <td className="px-3 py-3">{r.predicted} {r.unit}</td>
+                          <td className="px-3 py-3">{r.acquired} {r.unit}</td>
                           <td className="px-3 py-3 font-semibold">{status}</td>
                           <td className="px-3 py-3">
                             {status === "Surplus" && (

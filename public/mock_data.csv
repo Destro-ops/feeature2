@@ -1,9 +1,9 @@
-name,predicted,acquired
-Steel Bars,120,140
-Wood,80,60
-Tiles,200,210
-Cement,150,130
-Concrete,300,300
-Glass,90,70
-Bricks,500,520
+name,predicted,acquired,unit
+Steel Bars,120,140,kg
+Wood,80,60,m³
+Tiles,200,210,m²
+Cement,150,130,bags
+Concrete,300,300,m³
+Glass,90,70,m²
+Bricks,500,520,units
 
